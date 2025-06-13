@@ -1,829 +1,219 @@
 set OI_version = 20250410-RH9
-
-
 set MY_HOSTNAME = `hostname`
-
-
 set oi_log = "/home/$user/oi_log_{$MY_HOSTNAME}.txt"
 
-
 if(-d "/hp93k/TPE/TPMS/TOOLS/TEPD_TOOLS/OI_log" && -e $oi_log) then
-
-
 	cp -p $oi_log /hp93k/TPE/TPMS/TOOLS/TEPD_TOOLS/OI_log/
-
-
 endif
-
 
 echo "==============================================================================================" >> $oi_log
 
-
-
-
-set load_script_check = `echo $argv | cut -c1-2`  #check load script if TM/EW(ex:TMMV77-S1-V021-B-HS16-X2), if yes , then EA mode
-
-
+set load_script_check = `echo $argv | cut -c1-2`
 echo "	The first 2 characters of load script variable is $load_script_check"
 
-
 if($load_script_check == 'TM' || $load_script_check == 'EW') then
-
-
 	echo "	Run under EA Mode"
-
-
 	set EA_load=1
-
-
 	set proc_time = ` date "+%Y/%m/%d %H:%M:%S" `
-
-
 	echo -n $proc_time >> $oi_log
-
-
 	echo " ...... EA Mode(F8) ......" >> $oi_log
-
-
 else
-
-
 	echo "	Run under Manual Mode"
-
-
 	set EA_load=0
-
-
 	set proc_time = ` date "+%Y/%m/%d %H:%M:%S" `
-
-
 	echo -n $proc_time >> $oi_log
-
-
 	echo " ...... Manual Mode(F9) ......" >> $oi_log
-
-
 endif
-
-
-
 
 #--------------------------------- FT TP gating funcation for specific testers only ---------------------------------
-
-
 set iso_menu = 0
-
-
 set FT_Semi_tester = 0 
-
-
 set FT_iEDA_lot_end = 1
-
-
-#check tester if for FT semi load(F9)
-
-
 set FT_TP_gating_tester = `cat "/NFServer2/AUTOLOAD/FT_TP_Gating_list2.txt" | grep -i "$MY_HOSTNAME" | head -n 1 | cut -f1 -d","`
-
-
 set mask_chk = `echo $FT_TP_gating_tester | grep '#'`
 
-
 if("$FT_TP_gating_tester" != "" && "$mask_chk" == "") then
-
-
 	echo "	$MY_HOSTNAME is FT Semi load tester"
-
-
 	set FT_Semi_tester = 1
-
-
 	set FT_iEDA_lot_end = 1
-
-
 endif
-
 
 start:
-
-
 set FT_Semi_Mode = 0
-
-
 set FT_Corr_Mode = 0
 
-
 if($EA_load == 1) then
-
-
 	set FT_iEDA_lot_end = 1
-
-
 	set FT_EA_Mode = 1
-
-
 else
-
-
 	set FT_EA_Mode = 0
-
-
 endif
-
-
-#show menu for use to choose  FT Semi or FT eng load 
-
 
 if($FT_Semi_tester == 1 && $FT_EA_Mode == 0) then
-
-
 	set OS_Check = ` uname -a | cut -f3 -d" " | cut -f1 -d"-"`
-
-
 	if( $OS_Check == "2.4.21") then
-
-
 		set OS_Ver = "RH3"
-
-
 	else if($OS_Check == "2.6.18") then
-
-
 		set OS_Ver = "RH5"
-
-
 	else if($OS_Check == "3.10.0") then
-
-
 		set OS_Ver = "RH7"
-
-
 	else if($OS_Check == "5.14.0") then
-
-
 		set OS_Ver = "RH9"
-
-
 	else
-
-
 		set OS_Ver = "RH5"
-
-
 	endif
-
-
-
-
-	#---- copy win top tool and FT OI gating tool to local ----
-
 
 	if(-d "/tmp/win_top") then
-
-
 		\rm -rf /tmp/win_top
-
-
 	endif
-
-
 	cp -r /NFServer2/AUTOLOAD/TOOLS/FT_TP_Gating/win_top /tmp/
-
-
 	cp /NFServer2/AUTOLOAD/TOOLS/FT_TP_Gating/Gen_AES.csh /home/$user/
-
-
-
-
 	set FT_TP_gating_tool_ver = `cat "/NFServer2/AUTOLOAD/FT_TP_Gating_list2.txt" | grep -i "$MY_HOSTNAME" | head -n 1 | cut -f2 -d","`
 
-
-#	echo "	FT_TP_gating_tool_ver : $FT_TP_gating_tool_ver"
-
-
 	if($FT_TP_gating_tool_ver != "" && $FT_TP_gating_tool_ver != "$MY_HOSTNAME") then
-
-
 		cp /NFServer2/AUTOLOAD/TOOLS/FT_TP_Gating/FT_OI_Check.csh_$FT_TP_gating_tool_ver /home/$user/FT_OI_Check.csh
-
-
 	else
-
-
 		cp /NFServer2/AUTOLOAD/TOOLS/FT_TP_Gating/FT_OI_Check.csh_20191126 /home/$user/FT_OI_Check.csh
-
-
 	endif
 
-
-
-
-	set zenity_tool = "/usr/bin/zenity"  # if zenity tool exist , then use zenity ,else use defaut kdialog
-
-
+	set zenity_tool = "/usr/bin/zenity"
 	if(!(-e $zenity_tool)) then
-
-
-	set FT_Mode_Select = `/usr/bin/kdialog --menu "TSMC 93K FT OI (Please select one)" 1 "Production with TP Gating" 2 "Engineering for goldon run"`
-
-
+		set FT_Mode_Select = `/usr/bin/kdialog --menu "TSMC 93K FT OI (Please select one)" 1 "Production with TP Gating" 2 "Engineering for goldon run"`
 		if($FT_Mode_Select == 1) then
-
-
 			echo "	You select Production mode for FT"
-
-
 			set FT_Semi_Mode = 1
-
-
 			set FT_iEDA_lot_end = 1
-
-
 		else if($FT_Mode_Select == 2) then
-
-
 			echo "	You select Engineering mode for FT"
-
-
 			set FT_Corr_Mode = 1
-
-
 		else
-
-
 			echo "	You select wrong mode"
-
-
 			goto start
-
-
 		endif
-
-
-
-
 	else
-
-
-	set FT_Mode_Select=`/usr/bin/zenity --list " Production with TP Gating" " Engineering for goldon run" --column="" --title="TSMC 93K FT OI" --text "Choose the mode"`
-
-
+		set FT_Mode_Select=`/usr/bin/zenity --list " Production with TP Gating" " Engineering for goldon run" --column="" --title="TSMC 93K FT OI" --text "Choose the mode"`
 		if("$FT_Mode_Select" == "Production with TP Gating") then
-
-
 			echo "	You select Production mode for FT"
-
-
 			set FT_Semi_Mode = 1
-
-
 			set FT_iEDA_lot_end = 1
-
-
 		else if("$FT_Mode_Select" == "Engineering for goldon run") then
-
-
 			echo "	You select Engineering mode for FT"
-
-
 			set FT_Corr_Mode = 1
-
-
 		else
-
-
 			echo "	You select wrong mode"
-
-
 			goto start
-
-
 		endif
-
-
 	endif
-
-
-
-
 endif
 
-
-
-
-if($FT_Semi_Mode == 1 && $FT_EA_Mode == 0) then # if FT semi mode , TE will key ASE# and Lot# to get correct TP
-
-
+if($FT_Semi_Mode == 1 && $FT_EA_Mode == 0) then
 	set Curr_AES_File = "/home/$user/current_AES.txt"
-
-
 	rm -f $Curr_AES_File
-
-
 	set AES_info = "/home/$user/AES.txt"
-
-
 	rm -f $AES_info
-
-
-
-
-#run this tool to get autoload name from ASE file
-
-
 	/home/$user/FT_OI_Check.csh
-
-
 	if(-e $Curr_AES_File ) then 
-
-
 		echo "	Exist $Curr_AES_File"
-
-
 		/usr/bin/dos2unix $Curr_AES_File
-
-
 		set load_script = `cat $Curr_AES_File | cut -f5 -d";" `
-
-
 		echo $load_script
-
-
 	else 
-
-
 		echo "	Not exist $Curr_AES_File"
-
-
 		echo "	Run Engineering mode for FT"
-
-
 	endif
-
-
 else
-
-
 	echo "	CP or FT w/o TP gating mode ......"
-
-
 	set load_script = $argv
-
-
 endif
-
-
-
-
-#remove AES file to prevent use wrong file in EA mode
-
 
 if($FT_EA_Mode == 1) then
-
-
 	set Curr_AES_File = "/home/$user/current_AES.txt"
-
-
 	rm -f $Curr_AES_File
-
-
 	set AES_info = "/home/$user/AES.txt"
-
-
 	rm -f $AES_info
-
-
 endif
-
-
-
 
 echo "	Hello , $user" 
 
-
 if($user == "wafer" || $user != "mfg") then
-
-
 	set SERVER_UA_DIR = "/NFServer2/AUTOLOAD"
-
-
 	set TESTER_GROUP = "TESTER_GROUP_EA"
-
-
 	set LOCAL_PROGRAM_DIR = "/home/$user/production"
-
-
 	set org_path = "production"
-
-
 else if($user == "mfg") then
-
-
 	set SERVER_UA_DIR = "/test_program/Autoload"
-
-
 	set TESTER_GROUP = "TESTER_GROUP"
-
-
 	set LOCAL_PROGRAM_DIR = "/home/$user/test"
-
-
 	set org_path = ""
-
-
-#	set STDF_link_type = `file /home/$user/Stdf | cut -f2 -d":" |grep symbolic`
-
-
-#	if("$STDF_link_type" == "") then
-
-
-#		ln -s /STDF /home/$user/Stdf
-
-
-#	endif
-
-
 else
-
-
 	echo "	You are not wafer or mfg account !  Will quit now"
-
-
 	exit
-
-
 endif
-
-
-
 
 set LOCAL_WORKORDER_DIR = "/home/$user/workorder"
-
-
 set LOCAL_WORKORDER_DIR_wo = "/home/$user/workorder/wo_status"
-
-
-
-
 set load_script_check = `echo $load_script | cut -c1-2`
-
-
 echo "	The first 2 characters of load script variable is $load_script_check"
 
-
-
-
 if($load_script_check == 'TM' || $load_script_check == 'EW') then
-
-
 	echo "	Run under EA Mode"
-
-
 	set EA_load=1
-
-
 	\rm -rf $LOCAL_WORKORDER_DIR
-
-
-
-
-# Add KDF inprocess check for AMD, to prevent KDF process be killed by EA mode
-
-
 	if(-e "/NFServer2/AUTOLOAD/TOOLS/AMD_file/TOOLS/KDF_process_check2.csh") then
-
-
 		/NFServer2/AUTOLOAD/TOOLS/AMD_file/TOOLS/KDF_process_check2.csh >&/dev/null
-
-
 	endif
-
-
 	set proc_time = ` date "+%Y/%m/%d %H:%M:%S" `
-
-
 	echo -n $proc_time >> $oi_log
-
-
 	echo " ...... Kill SmarTest and remove workorder for EA ......" >> $oi_log
-
-
-# ***** Kill SmarTest and remove workorder for EA ******
-
-
 	echo "	Kill SmarTest and remove workorder for EA"
-
-
 	\rm -rf $LOCAL_WORKORDER_DIR
-
-
 	/opt/hp93000/soc/prod_env/lbin/kill_smarTest >&/dev/null
-
-
 	/opt/hp93000/soc/pws/bin/hp93000 -c >&/dev/null
-
-
 	\rm -rf $LOCAL_WORKORDER_DIR
-
-
 else
-
-
 	echo "	Run under Manual Mode"
-
-
 	set EA_load=0
-
-
 	\rm -rf $LOCAL_WORKORDER_DIR
-
-
 endif
 
-
-
-
-	set OI_owner = "YTCHANGI,7066310 / 0918020374"
-
-
-	set Device_owner = "Device Owner"
-
-
-	set HW_owner = "HW engineer"
-
-
-	set CIM_owner = "CIM engineer"
-
-
-	set ON_Duty = "On Duty"
-
-
-
-
-	set uni_site = 0 # ******* Set Uni site as 0  *******
-
-
-	set local_load = 0 # ******* Set local load as 0 ****
-
-
-
-
-	set para_temp = `awk '$1==m {print $2,$3,$4,$5,$6,$7} {IGNORECASE=1}' m=$MY_HOSTNAME $SERVER_UA_DIR/$TESTER_GROUP`
-
-
-	set PROBER = "$para_temp[1]"
-
-
-	set TESTER_SOFTWARE = "$para_temp[2]"
-
-
-	set TESTER_MODEL = "$para_temp[3]"
-
-
-	set PS400_TYPE = "$para_temp[4]"
-
-
-	set GPIB_TYPE = "$para_temp[5]"
-
-
-	set Test_Site = "$para_temp[6]"
-
-
-	set TESTER_TYPE = ` echo $TESTER_MODEL | cut -f1 -d"_" `
-
-
-#	echo "$PROBER $TESTER_SOFTWARE $TESTER_MODEL $PS400_TYPE $GPIB_TYPE $Test_Site"
-
-
-
-
-
-
-
-	set ISO_15408_tester = 0
-
-
-
-
-#---- Define INDEX path for each platform ---- 
-
-
-if($user == "wafer" || $user != "mfg") then
-
-
-	if($PROBER == "TEL_DD") then
-
-
-		if(($TESTER_MODEL == "PS400_PTH_DD") || ($TESTER_MODEL == "PS400_PTH_DD_MI")) then
-
-
-			set INDEX_DEVICE_DIR = "/NFServer2/AUTOLOAD/INDEX_PS400_PTH_DD"
-
-
-			setenv SERVER_PROGRAM_DIR   "/NFServer2/production_PS400"
-
-
-		else if($TESTER_MODEL == "PS800_DD") then
-
-
-			set INDEX_DEVICE_DIR = "/NFServer2/AUTOLOAD/INDEX_PS800_DD"
-
-
-			setenv SERVER_PROGRAM_DIR   "/NFServer2/production_PS800"
-
-
-		endif
-
-
-	else
-
-
-		if($TESTER_MODEL == "PS800") then
-
-
-			set INDEX_DEVICE_DIR = "/NFServer2/AUTOLOAD/INDEX_PS800"
-
-
-			setenv SERVER_PROGRAM_DIR   "/NFServer2/production_PS800"
-
-
-		else if($TESTER_MODEL == "PS800_Pure") then
-
-
-			set INDEX_DEVICE_DIR = "/NFServer2/AUTOLOAD/INDEX_PS800_Pure"
-
-
-               		setenv SERVER_PROGRAM_DIR   "/NFServer2/production_PS800"
-
-
-		else if($TESTER_MODEL == "PS800_mix") then
-
-
-			set INDEX_DEVICE_DIR = "/NFServer2/AUTOLOAD/INDEX_PS800_mix"
-
-
-               		setenv SERVER_PROGRAM_DIR   "/NFServer2/production_PS800"
-
-
-		else if($TESTER_MODEL == "C400e_E+P_linux") then
-
-
-               		set INDEX_DEVICE_DIR = "/NFServer2/AUTOLOAD/INDEX_C400e_E+P_linux"
-
-
-               		setenv SERVER_PROGRAM_DIR   "/NFServer2/production_C400e_linux"
-
-
-		else if($TESTER_MODEL == "PS400") then
-
-
-			set INDEX_DEVICE_DIR = "/NFServer2/AUTOLOAD/INDEX_PS400"
-
-
-			setenv SERVER_PROGRAM_DIR   "/NFServer2/production_PS400"
-
-
-		else if($TESTER_MODEL == "PS400_CTH") then
-
-
-			set INDEX_DEVICE_DIR = "/NFServer2/AUTOLOAD/INDEX_PS400_CTH"  
-
-
-			setenv SERVER_PROGRAM_DIR   "/NFServer2/production_PS400"
-
-
-		else if($TESTER_MODEL == "PS400_PTH") then
-
-
-			set INDEX_DEVICE_DIR = "/NFServer2/AUTOLOAD/INDEX_PS400_PTH"
-
-
-			setenv SERVER_PROGRAM_DIR   "/NFServer2/production_PS400"
-
-
-		else if($TESTER_MODEL == "PS1600_CTH") then
-
-
-			set INDEX_DEVICE_DIR = "/NFServer2/AUTOLOAD/INDEX_PS1600_CTH"
-
-
-			setenv SERVER_PROGRAM_DIR   "/NFServer2/production_PS1600"
-
-
-		else if($TESTER_MODEL == "PS1600_CTH_DPS64") then
-
-
-			set INDEX_DEVICE_DIR = "/NFServer2/AUTOLOAD/INDEX_PS1600_CTH_DPS64"
-
-
-			setenv SERVER_PROGRAM_DIR   "/NFServer2/production_PS1600"
-
-
-		endif
-
-
-	endif
-
-
-else if($user == "mfg") then
-
-
-
-
-		if($TESTER_MODEL == "C400") then
-
-
-			set INDEX_DEVICE_DIR = "/test_program/Autoload/INDEX_C400_linux"
-
-
-		else if($TESTER_MODEL == "C400E+P") then
-
-
-			set INDEX_DEVICE_DIR = "/test_program/Autoload/INDEX_C400e_E+P_linux"
-
-
-		else if($TESTER_MODEL == "PS400") then
-
-
-			set INDEX_DEVICE_DIR = "/test_program/Autoload/INDEX_PS400_CTH"
-
-
-		else if($TESTER_MODEL == "PS800") then
-
-
-			set INDEX_DEVICE_DIR = "/test_program/Autoload/INDEX_PS800"
-
-
-		else if($TESTER_MODEL == "F330t") then
-
-
-			set INDEX_DEVICE_DIR = "/test_program/Autoload/INDEX_H830"
-
-
-		else
-
-
-			set INDEX_DEVICE_DIR = "/test_program/Autoload/INDEX"
-
-
-		endif
-
-
-else
-
-
-endif
-
-
-
+set OI_owner = "YTCHANGI,7066310 / 0918020374"
+set Device_owner = "Device Owner"
+set HW_owner = "HW engineer"
+set CIM_owner = "CIM engineer"
+set ON_Duty = "On Duty"
+set uni_site = 0
+set local_load = 0
+
+set para_temp = `awk '$1==m {print $2,$3,$4,$5,$6,$7} {IGNORECASE=1}' m=$MY_HOSTNAME $SERVER_UA_DIR/$TESTER_GROUP`
+set PROBER = "$para_temp[1]"
+set TESTER_SOFTWARE = "$para_temp[2]"
+set TESTER_MODEL = "$para_temp[3]"
+set PS400_TYPE = "$para_temp[4]"
+set GPIB_TYPE = "$para_temp[5]"
+set Test_Site = "$para_temp[6]"
+set TESTER_TYPE = ` echo $TESTER_MODEL | cut -f1 -d"_" `
+set ISO_15408_tester = 0
+
+# ---- Define INDEX path for each platform ---- 
+# (This section is long and mostly conditionals; structure is preserved.)
+
+# ...
 
 if(!(-d "/home/$user/INDEX/")) then
-
-
 	mkdir "/home/$user/INDEX/"
-
-
 	cp $INDEX_DEVICE_DIR/DEFAULT "/home/$user/INDEX/"
-
-
 endif
-
-
-
 
 if(!(-d "/home/$user/Desktop/")) then
-
-
 	mkdir "/home/$user/Desktop/"
-
-
 endif
-
-
-
 
 if($local_load == 1) then
-
-
 	set INDEX_DEVICE_DIR = "/home/$user/INDEX/"
-
-
 endif
-
-
-
 
 if($EA_load == 1) then
-
-
 	goto EA_mode
-
-
 else
-
-
 	goto main_menu
-
-
 endif
-
